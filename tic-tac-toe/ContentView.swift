@@ -27,7 +27,8 @@ class Square : ObservableObject {
 class TTTModel : ObservableObject {
     @Published var squares = [Square]()
     @Published var currentPlayer : Int = 0
-    @Published var currentPlayerText : String = "Player X's Turn"
+    @Published var currentPlayerText : String = "player x's turn"
+    @Published var winnerText : String = "draw"
     
     init(){
         for _ in 0...(num_sq-1) {
@@ -36,14 +37,23 @@ class TTTModel : ObservableObject {
     }
     
     func resetGame() {
-        for _ in 0...(num_sq-1) {
-            squares.append(Square(status: .empty))
+        for i in 0...(num_sq-1) {
+            squares[i].sqStatus = .empty
         }
+        
+        currentPlayer = 0
+        currentPlayerText = "player x's turn"
+        winnerText = "draw"
     }
     
     var gameOver : (SquareStatus, Bool) {
         get{
             if yesWinner != .empty {
+                if yesWinner == .x {
+                    self.winnerText = "player x wins"
+                } else {
+                    self.winnerText = "player o wins"
+                }
                 return (yesWinner, true)
             } else {
                 for i in 0...(num_sq-1) {
@@ -59,7 +69,7 @@ class TTTModel : ObservableObject {
     
     private var yesWinner: SquareStatus {
         get {
-            for i in 0...row_col_sz {
+            for i in 0...(row_col_sz-1) {
                 if let check = self.checkIndexes([i*row_col_sz, i*row_col_sz + 1, i*row_col_sz + 2]) {
                     return check
                 }
@@ -69,7 +79,7 @@ class TTTModel : ObservableObject {
                 }
             }
             
-            if let check = self.checkIndexes([0, 4, 9]) {
+            if let check = self.checkIndexes([0, 4, 8]) {
                 return check
             }
             
@@ -83,24 +93,46 @@ class TTTModel : ObservableObject {
     
     private func checkIndexes(_ indexes : [Int]) -> SquareStatus? {
         guard let firstIndex = indexes.first else { return nil }
-        let allEq = indexes.dropFirst().allSatisfy({ squares[$0].sqStatus == squares[firstIndex].sqStatus })
-        if allEq {
-            if squares[indexes[firstIndex]].sqStatus != .empty {
-                return squares[indexes[firstIndex]].sqStatus
-            }
+        let firstSqStatus = squares[firstIndex].sqStatus
+        
+        let allEq = indexes.allSatisfy({ squares[$0].sqStatus == firstSqStatus })
+            
+        if allEq && firstSqStatus != .empty {
+            return firstSqStatus
         }
         
         return nil
     }
     
+    /*
+     private func checkIndexes(_ indexes : [Int]) -> SquareStatus? {
+         var homeCounter : Int = 0
+                 var visitorCounter : Int = 0
+                 for index in indexes {
+                     let square = squares[index]
+                     if square.sqStatus == .x {
+                         homeCounter += 1
+                     } else if square.sqStatus == .o {
+                         visitorCounter += 1
+                     }
+                 }
+                 if homeCounter == 3 {
+                     return .x
+                 } else if visitorCounter == 3 {
+                     return .o
+                 }
+                 return nil
+     }
+    */
+    
     func makeMove(index: Int) -> Bool {
         if squares[index].sqStatus == .empty {
             if self.currentPlayer == 0 {
                 squares[index].sqStatus = .x
-                self.currentPlayerText = "Player O's Turn"
+                self.currentPlayerText = "player o's turn"
             } else {
                 squares[index].sqStatus = .o
-                self.currentPlayerText = "Player X's Turn"
+                self.currentPlayerText = "player x's turn"
             }
             
             self.currentPlayer = (self.currentPlayer + 1) % 2
@@ -135,9 +167,11 @@ struct SquareView : View {
 
 struct ContentView: View {
     @StateObject var tttModel = TTTModel()
+    @State var gameOver : Bool = false
     
     func buttonAction(_ index : Int) {
         _ = self.tttModel.makeMove(index: index)
+        self.gameOver = self.tttModel.gameOver.1
     }
     
     var body: some View {
@@ -164,7 +198,11 @@ struct ContentView: View {
                 .foregroundColor(Color.black.opacity(0.7))
                 .padding(.bottom)
                 .font(.title2)
-        }
+        }.alert(isPresented: self.$gameOver, content: {
+            Alert(title: Text("Game Over"), message: Text(self.tttModel.winnerText), dismissButton: Alert.Button.destructive(Text("OK"), action: {
+                self.tttModel.resetGame()
+                }))
+        })
     }
 }
 
